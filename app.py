@@ -231,10 +231,11 @@ class WheelForce:
     mode 'spring' : spring-rate table vs spring travel, MR (wheel/spring) vs wheel travel,
                     bump stop gap (mm spring/damper travel) and force vs compression table."""
 
-    def __init__(self, cfg, Ws):
-        self.mode, self.Ws = cfg["mode"], Ws
+    def rate(self, s, h=0.05):
+        """Wheel rate (N/mm), rounded to 3 dp to remove numerical noise."""
         if self.mode == "wheel":
-            self.rc = RateCurve(cfg["travel"], cfg["rate"], 0.0)
+            return round(self.rc.k(s), 3)
+        return round((self(s + h)[0] - self(s - h)[0]) / (2 * h), 3)
         else:
             ms_, mr = np.asarray(cfg["mr_travel"], float), np.asarray(cfg["mr"], float)
             o = np.argsort(ms_)
@@ -418,6 +419,12 @@ if __name__ == "__main__":
                "linear Guggiani roll model  |  linear pitch / anti-dive model")
 
     # ---------------- helpers ----------------
+      _chart_n = [0]
+
+    def show(where, fig, **kw):
+        """plotly_chart with a unique key (avoids StreamlitDuplicateElementId for identical figures)."""
+        _chart_n[0] += 1
+        where.plotly_chart(fig, use_container_width=True, key=f"chart_{_chart_n[0]}")
     def num_df(df):
         df = df.apply(pd.to_numeric, errors="coerce").dropna()
         return df.reset_index(drop=True)
@@ -491,7 +498,7 @@ if __name__ == "__main__":
             fig.add_scatter(x=ang, y=V[i], mode="lines+markers", name=f"heave {h:g} mm")
         fig.update_layout(height=280, xaxis_title=f"{ang_label} (deg)", yaxis_title="Height (mm)",
                           margin=dict(t=20, b=10), legend=dict(orientation="h"))
-        st.plotly_chart(fig, use_container_width=True)
+        show(st,fig, use_container_width=True)
         return heave, ang, V
 
     def spring_input(key, label, kw, mr, Ws):
@@ -530,10 +537,10 @@ if __name__ == "__main__":
             fig.add_scatter(x=ss, y=[wfo.rate(v) for v in ss], name="Wheel rate (N/mm)")
             fig.add_scatter(x=ss, y=[wfo(v)[0] for v in ss], name="Wheel force (N)", yaxis="y2")
             fig.update_layout(height=300, xaxis_title="Wheel travel (mm, bump +)",
-                              yaxis_title="Wheel rate (N/mm)",
-                              yaxis2=dict(title="Wheel force (N)", overlaying="y", side="right"),
+                              yaxis=dict(title="Wheel rate (N/mm)", tickformat=".3f"),
+                              yaxis2=dict(title="Wheel force (N)", overlaying="y", side="right", tickformat=".0f"),
                               margin=dict(t=20, b=10), legend=dict(orientation="h"))
-            st.plotly_chart(fig, use_container_width=True)
+            show(st,fig, use_container_width=True)
         except Exception as e:
             st.error(f"Curve error: {e}")
         return cfg
@@ -544,7 +551,7 @@ if __name__ == "__main__":
             fig.add_scatter(x=df[xcol], y=df[c], name=n, mode="lines")
         for v, lab in (hl or []):
             fig.add_hline(y=v, line_dash="dash", line_color="red", annotation_text=lab)
-        fig.update_layout(title=title, height=330, xaxis_title=xlabel, yaxis_title=ytitle,
+        fig.update_layout(title=title, height=330, xaxis_title=xlabel, yaxis=dict(title=ytitle, tickformat=".3~f"),
                           margin=dict(t=40, b=10), legend=dict(orientation="h"))
         return fig
 
@@ -641,8 +648,8 @@ if __name__ == "__main__":
                                yaxis2=dict(title="Roll angle (°)", overlaying="y", side="right"),
                                margin=dict(t=30, b=10), legend=dict(orientation="h"))
             g1, g2 = st.columns(2)
-            g1.plotly_chart(fig, use_container_width=True)
-            g2.plotly_chart(fig2, use_container_width=True)
+            show(g1,fig, use_container_width=True)
+            show(g2,fig2, use_container_width=True)
 
             with st.expander("Roll angle split & derived values"):
                 st.dataframe(pd.DataFrame({
@@ -718,8 +725,8 @@ if __name__ == "__main__":
             fig2.update_layout(height=320, xaxis_title="Front anti-dive (%)", yaxis_title="Wing drop (mm)",
                                margin=dict(t=30, b=10))
             h1, h2 = st.columns(2)
-            h1.plotly_chart(fig, use_container_width=True)
-            h2.plotly_chart(fig2, use_container_width=True)
+            show(h1,fig, use_container_width=True)
+            show(h2,fig2, use_container_width=True)
 
             st.caption("Anti % is the effective value (includes brake bias) and applies to sprung-mass "
                        "load transfer only. Tyres see the full ΔZ. Aero load change not included.")
@@ -757,9 +764,9 @@ if __name__ == "__main__":
                                     "Tyre vertical rate vs load", "Rate held flat outside the table.")
                     tyres[key] = dict(load=d.iloc[:, 0].values, rate=d.iloc[:, 1].values)
                     fig = go.Figure(go.Scatter(x=d.iloc[:, 0], y=d.iloc[:, 1], mode="lines+markers"))
-                    fig.update_layout(height=260, xaxis_title="Load (N)", yaxis_title="Rate (N/mm)",
+                    fig.update_layout(height=260, xaxis_title="Load (N)", yaxis=dict(title="Rate (N/mm)", tickformat=".3f"),
                                       margin=dict(t=20, b=10))
-                    st.plotly_chart(fig, use_container_width=True)
+                    show(st,fig, use_container_width=True)
 
         with t_rc:
             cf, cr = st.columns(2)
@@ -834,31 +841,31 @@ if __name__ == "__main__":
             m[5].metric("Max bump stop force", f"{res[['bump_FO','bump_FI','bump_RO','bump_RI']].values.max():.0f} N")
 
             g1, g2 = st.columns(2)
-            g1.plotly_chart(lines(res, xc, xl, ["roll", "roll_susp_f", "roll_susp_r", "pitch", "pitch_susp"],
+            show(g1,lines(res, xc, xl, ["roll", "roll_susp_f", "roll_susp_r", "pitch", "pitch_susp"],
                                   ["Body roll", "Susp. roll F", "Susp. roll R", "Body pitch", "Susp. pitch"],
                                   "deg", "Attitude"), use_container_width=True)
-            g2.plotly_chart(lines(res, xc, xl, ["rh_f", "rh_r", "wing", "heave"],
+            show(g2,lines(res, xc, xl, ["rh_f", "rh_r", "wing", "heave"],
                                   ["Front axle", "Rear axle", "Front wing", "Heave at CG"],
                                   "mm (+ up)", "Ride height change", hl=[(-wing_lim, "Wing limit")]),
                             use_container_width=True)
             g1, g2 = st.columns(2)
-            g1.plotly_chart(lines(res, xc, xl, ["N_FO", "N_FI", "N_RO", "N_RI"],
+            show(g1,lines(res, xc, xl, ["N_FO", "N_FI", "N_RO", "N_RI"],
                                   ["Front outer", "Front inner", "Rear outer", "Rear inner"],
                                   "N", "Tyre loads"), use_container_width=True)
-            g2.plotly_chart(lines(res, xc, xl, ["s_FO", "s_FI", "s_RO", "s_RI"],
+            show(g2,lines(res, xc, xl, ["s_FO", "s_FI", "s_RO", "s_RI"],
                                   ["Front outer", "Front inner", "Rear outer", "Rear inner"],
                                   "mm (bump +)", "Wheel travel"), use_container_width=True)
             g1, g2 = st.columns(2)
-            g1.plotly_chart(lines(res, xc, xl, ["q_f", "q_r", "q_p"],
+            show(g1,lines(res, xc, xl, ["q_f", "q_r", "q_p"],
                                   ["Front RC", "Rear RC", "Pitch centre"], "mm", "Roll / pitch centre height"),
                             use_container_width=True)
-            g2.plotly_chart(lines(res, xc, xl, ["lltd", "anti"], ["Front LLTD", "Effective anti"],
+            show(g2,lines(res, xc, xl, ["lltd", "anti"], ["Front LLTD", "Effective anti"],
                                   "%", "LLTD & anti"), use_container_width=True)
             g1, g2 = st.columns(2)
-            g1.plotly_chart(lines(res, xc, xl, ["geo_f", "el_f", "uns_f", "geo_r", "el_r", "uns_r"],
+            show(g1,lines(res, xc, xl, ["geo_f", "el_f", "uns_f", "geo_r", "el_r", "uns_r"],
                                   ["Geo F", "Elastic F", "Unsprung F", "Geo R", "Elastic R", "Unsprung R"],
                                   "N (per wheel)", "Lateral load transfer split"), use_container_width=True)
-            g2.plotly_chart(lines(res, xc, xl, ["k_FO", "k_FI", "k_RO", "k_RI"],
+            show(g2,lines(res, xc, xl, ["k_FO", "k_FI", "k_RO", "k_RI"],
                                   ["Front outer", "Front inner", "Rear outer", "Rear inner"],
                                   "N/mm", "Wheel rate at operating point"), use_container_width=True)
             if wheel_f["mode"] == "spring" or wheel_r["mode"] == "spring":
@@ -868,10 +875,10 @@ if __name__ == "__main__":
                 if wheel_r["mode"] == "spring":
                     hl.append((wheel_r["gap"], "Rear gap"))
                 g1, g2 = st.columns(2)
-                g1.plotly_chart(lines(res, xc, xl, ["x_FO", "x_FI", "x_RO", "x_RI"],
+                show(g1,lines(res, xc, xl, ["x_FO", "x_FI", "x_RO", "x_RI"],
                                       ["Front outer", "Front inner", "Rear outer", "Rear inner"],
                                       "mm (comp +)", "Spring / damper travel", hl=hl), use_container_width=True)
-                g2.plotly_chart(lines(res, xc, xl, ["bump_FO", "bump_FI", "bump_RO", "bump_RI"],
+                show(g2,lines(res, xc, xl, ["bump_FO", "bump_FI", "bump_RO", "bump_RI"],
                                       ["Front outer", "Front inner", "Rear outer", "Rear inner"],
                                       "N", "Bump stop force (at damper)"), use_container_width=True)
 
