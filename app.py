@@ -421,12 +421,13 @@ if __name__ == "__main__":
                "linear Guggiani roll model  |  linear pitch / anti-dive model")
 
     # ---------------- helpers ----------------
-      _chart_n = [0]
+    _chart_n = [0]
 
     def show(where, fig, **kw):
         """plotly_chart with a unique key (avoids StreamlitDuplicateElementId for identical figures)."""
         _chart_n[0] += 1
         where.plotly_chart(fig, use_container_width=True, key=f"chart_{_chart_n[0]}")
+
     def num_df(df):
         df = df.apply(pd.to_numeric, errors="coerce").dropna()
         return df.reset_index(drop=True)
