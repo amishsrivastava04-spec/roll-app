@@ -231,11 +231,10 @@ class WheelForce:
     mode 'spring' : spring-rate table vs spring travel, MR (wheel/spring) vs wheel travel,
                     bump stop gap (mm spring/damper travel) and force vs compression table."""
 
-    def rate(self, s, h=0.05):
-        """Wheel rate (N/mm), rounded to 3 dp to remove numerical noise."""
+    def __init__(self, cfg, Ws):
+        self.mode, self.Ws = cfg["mode"], Ws
         if self.mode == "wheel":
-            return round(self.rc.k(s), 3)
-        return round((self(s + h)[0] - self(s - h)[0]) / (2 * h), 3)
+            self.rc = RateCurve(cfg["travel"], cfg["rate"], 0.0)
         else:
             ms_, mr = np.asarray(cfg["mr_travel"], float), np.asarray(cfg["mr"], float)
             o = np.argsort(ms_)
@@ -263,7 +262,10 @@ class WheelForce:
         return (Fs + Fb) / mr, Fb, x, Fs
 
     def rate(self, s, h=0.05):
-        return (self(s + h)[0] - self(s - h)[0]) / (2 * h)
+        """Wheel rate (N/mm), rounded to 3 dp to remove numerical noise."""
+        if self.mode == "wheel":
+            return round(self.rc.k(s), 3)
+        return round((self(s + h)[0] - self(s - h)[0]) / (2 * h), 3))
 
     def outside(self, s):
         if self.mode == "wheel":
