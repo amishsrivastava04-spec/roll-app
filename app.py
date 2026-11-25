@@ -265,7 +265,7 @@ class WheelForce:
         """Wheel rate (N/mm), rounded to 3 dp to remove numerical noise."""
         if self.mode == "wheel":
             return round(self.rc.k(s), 3)
-        return round((self(s + h)[0] - self(s - h)[0]) / (2 * h), 3))
+        return round((self(s + h)[0] - self(s - h)[0]) / (2 * h), 3)
 
     def outside(self, s):
         if self.mode == "wheel":
